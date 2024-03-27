@@ -1,0 +1,148 @@
+apiVersion: scaffolder.backstage.io/v1beta3
+# https://backstage.io/docs/features/software-catalog/descriptor-format#kind-template
+kind: Template
+metadata:
+  name: sample-btpsubaccount-remote-template
+  title: Remote Template for SAP BTP Subaccount Setup
+  description: A remote template that creates a basic SAP BTP Subaccount setup
+  tags:
+    - sap
+    - btp
+    - basic
+    - javascript
+spec:
+  owner: user:guest
+  type: service
+
+  # These parameters are used to generate the input form in the frontend, and are
+  # used to gather input data for the execution of the template.
+  parameters:
+    - title: Project Data
+      required:
+        - projectName
+        - region
+      properties:
+        projectName:
+          title: Project Name
+          description: Unique name of the project
+          type: string
+          maxLength: 50
+          pattern: '^[a-zA-Z0-9_\\-]{1,200}'
+          ui:autofocus: true
+        region:
+          title: Region of BTP Subaccount
+          type: array
+          items:
+            type: string
+            enum: 
+              - 'us10'
+              - 'eu10'
+              - 'ap10'
+          uniqueItems: true
+          ui:widget: checkboxes    
+    - title: Organizational Data
+      required:
+        - costCenter
+        - stage
+        - orgUnit
+      properties:
+        costCenter:
+          title: Cost Center
+          description: Cost center for the project
+          type: string
+          pattern: '^[0-9]{10}'
+        stage:
+          title: Development stage
+          description: Development stage of the project
+          type: array
+          items:
+            type: string
+            enum:
+              - 'DEV'
+              - 'TST'
+              - 'SBX'
+            enumNames:
+              - Development
+              - Testing
+              - Sandbox  
+          uniqueItems: true
+          ui:widget: checkboxes  
+        orgUnit:
+          title: Organizational Unit
+          description: Organizational unit for the project
+          type: array
+          items:
+            type: string
+            enum:
+              - B2B
+              - B2C
+              - ECOMMERCE
+          uniqueItems: true
+          ui:widget: checkboxes  
+  
+  # These steps are executed in the scaffolder backend, using data that we gathered
+  # via the parameters above.
+  steps:
+    # This step creates a new repository in the org's GitHub account.
+    - id: fetchBase
+      name: Fetch Base
+      action: fetch:template
+      input:
+        url: https://github.com/btp-automation-scenarios/backstage-base-btp-template
+        copyWithoutTemplating:
+          - .devcontainer/*.json
+          - .devcontainer/withenvfile/*.json
+          - .github/workflows/*.yml
+          - .github/**/*.yml
+          - infra/*.tf
+          - src/*.*
+
+        values:
+          name: ${{ parameters.projectName }}
+          region: ${{ parameters.region[0] }}
+          costCenter: ${{ parameters.costCenter }}
+          stage: ${{ parameters.stage[0] }}
+          orgUnit: ${{ parameters.orgUnit[0] }}
+
+    # This step publishes the contents of the working directory to GitHub.
+    - id: createRepo
+      name: Publish
+      action: publish:github
+      input:
+        repoUrl: 'github.com?repo=${{ parameters.projectName }}&owner=btp-automation-scenarios'
+        description: 'Project Repository for ${{ parameters.projectName }} by Backstage.io'
+        repoVisibility: 'public' 
+        defaultBranch: 'main'
+
+    # This step triggers the execution of the Terraform setup via GitHub Actions.
+    - id: setupViaGHAction
+      name: Execute Terraform Setup via GitHub Actions
+      action: github:actions:dispatch
+      input:
+        repoUrl: 'github.com?repo=${{ parameters.projectName }}&owner=btp-automation-scenarios'
+        workflowId: 'create_base_project.yml'
+        branchOrTagName: 'main'
+        workflowInputs: 
+          PROJECT_NAME: '${{ parameters.projectName }}'
+          REGION: '${{ parameters.region[0] }}'
+          COST_CENTER: '${{ parameters.costCenter }}'
+          STAGE: '${{ parameters.stage[0] }}'
+          ORGANIZATION: '${{ parameters.orgUnit[0] }}'
+
+
+    # The final step is to register our new component in the catalog.
+    - id: register
+      name: Register
+      action: catalog:register
+      input:
+        repoContentsUrl: ${{ steps['createRepo'].output.repoContentsUrl }}
+        catalogInfoPath: '/catalog-info.yaml'
+
+  # Outputs are displayed to the user after a successful execution of the template.
+  output:
+    links:
+      - title: Repository
+        url: ${{ steps['publish'].output.remoteUrl }}
+      - title: Open in catalog
+        icon: catalog
+        entityRef: ${{ steps['register'].output.entityRef }}

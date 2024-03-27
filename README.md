@@ -23,7 +23,7 @@ You find the snippets for the Backstage configuration in the folder `backstage_c
 
 - `app-config.yaml`: Configuration for the Backstage app containing the references to the templates
 - `btp-sample-remote`: This folder contains the configuration for the remote template that is used to create new repositories via Backstage (namely <https://github.com/btp-automation-scenarios/backstage-base-btp-template>) and create the infrastructure on SAP BTP via Terraform
-- `btp-sample`: This folder contains the configuration for a setup as described in ![Alternative Setup](#alternative-setup) section. 
+- `btp-sample`: This folder contains the configuration for a setup as described in [Alternative Setup](#alternative-setup) section.
 
 ### backstage-base-btp-template
 
